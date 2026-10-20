@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import vm from "node:vm";
 import {fitSls, exponential} from "../src/fitting.js";
-const bundle = readFileSync(new URL("../assets/index-BaDyAcaM.js", import.meta.url), "utf8");
+const bundle = readFileSync(new URL("../assets/index-SlsTwoStageV1.js", import.meta.url), "utf8");
 const model = bundle.slice(bundle.indexOf("const Zk="), bundle.indexOf("const eE="));
 const parser = bundle.slice(bundle.indexOf("const Tx="), bundle.indexOf("function nq("));
 const context = vm.createContext({});
