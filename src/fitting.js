@@ -1,6 +1,6 @@
 // PRL Eqs. (12)-(13). Times are seconds, concentrations are g/L.
 // Calibration convention: divide the WHOLE measured ratio by f.
-// Second fit: baseline = 1, plateau = reference p_tilde.
+// Both fits: baseline = 1, free plateau and tau (verified against project exports).
 export function exponential(t, plateau, tau) {
   return 1 + (plateau - 1) * -Math.expm1(-t / tau);
 }
@@ -56,34 +56,35 @@ export function fitSls(observations, settings, calibrations) {
     const maxTime = times.reduce((a, b) => Math.max(a, b), -Infinity);
     // Profile out the amplitude analytically: ordinary least squares,
     // baseline fixed at 1, plateau and provisional tau free.
-    function firstAt(tau) {
+    function fitAt(tau, values) {
       let numerator = 0, denominator = 0;
-      for (const o of data) {
+      for (const o of values) {
         const q = -Math.expm1(-o.t / tau);
         numerator += q * (o.raw - 1); denominator += q * q;
       }
       const amplitude = Math.max(0, numerator / denominator);
       const plateau = 1 + amplitude;
-      const sse = data.reduce((sum, o) =>
+      const sse = values.reduce((sum, o) =>
         sum + (exponential(o.t, plateau, tau) - o.raw) ** 2, 0);
       return {plateau, sse};
     }
-    const first = minimizeLogTau(tau => firstAt(tau).sse, times);
-    const {plateau: pUnscaled} = firstAt(first.tau);
+    const first = minimizeLogTau(tau => fitAt(tau, data).sse, times);
+    const {plateau: pUnscaled} = fitAt(first.tau, data);
     if (pUnscaled - 1 < 1e-8) throw Error("No resolvable rising SLS signal; tau is not identifiable.");
     if (first.boundary) throw Error("The first fit cannot resolve a finite plateau/tau within the search range.");
     const {p_tilde: pReference, alpha, beta, tau_tilde: tauReference} = calibration;
     const f = pUnscaled / pReference;
     const corrected = data.map(o => ({...o, value: o.raw / f}));
-    const second = minimizeLogTau(tau => corrected.reduce((sum, o) =>
-      sum + (exponential(o.t, pReference, tau) - o.value) ** 2, 0), times);
+    const secondData = corrected.map(o => ({t:o.t, raw:o.value}));
+    const second = minimizeLogTau(tau => fitAt(tau, secondData).sse, times);
+    const pFitted = fitAt(second.tau, secondData).plateau;
     if (second.boundary) throw Error("The second fit cannot resolve tau within the search range.");
     const tau = second.tau;
     const k0 = (alpha * tauReference / tau) ** (-1 / beta) * 0.1 / c0;
     if (!(k0 > 0) || !Number.isFinite(k0)) throw Error("The fit did not produce a finite positive k0.");
     const predictions = corrected.map(o => ({
-      ...o, predicted: exponential(o.t, pReference, tau),
-      residual: exponential(o.t, pReference, tau) - o.value
+      ...o, predicted: exponential(o.t, pFitted, tau),
+      residual: exponential(o.t, pFitted, tau) - o.value
     }));
     const rmse = Math.sqrt(predictions.reduce((s, o) => s + o.residual ** 2, 0) / data.length);
     const warnings = [];
@@ -93,7 +94,7 @@ export function fitSls(observations, settings, calibrations) {
       "Whole-ratio calibration changes a unit baseline to 1/f. The second fit keeps baseline 1 as in Eq. (12); inspect the residuals.");
     if (maxTime > 1800) warnings.push("Some data exceed the manuscript's first-30-minute validity range.");
     if (k0 < 1e-6 || k0 > 1e-3) warnings.push("The estimate is outside the prediction slider's displayed range.");
-    return {ok: true, k0, tau, f, pUnscaled, pReference, firstTau: first.tau,
+    return {ok: true, k0, tau, f, pUnscaled, pReference, pFitted, firstTau: first.tau,
       reciprocal, rmse, predictions, warnings, used: data.length};
   } catch (error) {
     return {ok: false, message: error.message};

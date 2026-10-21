@@ -1,0 +1,21 @@
+{
+  "method": "Reconstructed from exported empirical fits and wavelength-matched beta tables; A = alpha * tau_reference, not separate estimates of its factors.",
+  "lp_um": 1,
+  "calibrations": {
+    "436-365": {
+      "p": 1.1695675159999959,
+      "beta": -0.790273298506457,
+      "A": 0.04373837018462239
+    },
+    "594-365": {
+      "p": 1.5517310879999975,
+      "beta": -0.847308812662032,
+      "A": 0.03410186294891237
+    },
+    "594-405": {
+      "p": 1.4165978300000017,
+      "beta": -0.873531825184124,
+      "A": 0.027349056195628628
+    }
+  }
+}

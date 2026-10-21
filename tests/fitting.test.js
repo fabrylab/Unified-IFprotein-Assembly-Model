@@ -11,25 +11,30 @@ vm.runInContext(model + parser + ";this.api={Ka,fc,JG,tq,Xw};", context);
 const {Ka,fc,JG,tq,Xw} = context.api;
 const settings = {c0:0.2,lp:"1.0",w1:594,w2:405,f:1};
 const times = Array.from({length:121},(_,i)=>i*5);
-const observations = (p=1.42,tau=60) => times.map(t=>({kind:"sls",t,value:exponential(t,p,tau)}));
+const pref = Ka["1.0|594/405"].p_tilde;
+const observations = (p=pref,tau=60) => times.map(t=>({kind:"sls",t,value:exponential(t,p,tau)}));
 const near = (actual,expected,tolerance=1e-6) =>
   assert.ok(Math.abs(actual/expected-1)<tolerance, `${actual} != ${expected}`);
-const expectedK0 = (2.13*.0128/60)**(1/.87)*.1/.2;
+const expectedK0 = (0.027349056195628628/60)**(-1/-.873531825184124)*.1/.2;
 
 test("two-stage fit recovers Eq. 12 and Eq. 13, including t=0",()=>{
   const result=fitSls(observations(),settings,Ka);
   assert.equal(result.ok,true);
-  near(result.pUnscaled,1.42); near(result.f,1);
+  near(result.pUnscaled,pref); near(result.f,1);
   near(result.firstTau,60); near(result.tau,60); near(result.k0,expectedK0);
   assert.ok(result.rmse<1e-8);
 });
 
 test("nonunit f is estimated and the second fit really uses the whole rescaled ratio",()=>{
   const result=fitSls(observations(1.6,75),settings,Ka);
-  assert.equal(result.ok,true); near(result.firstTau,75); near(result.f,1.6/1.42);
+  assert.equal(result.ok,true); near(result.firstTau,75); near(result.f,1.6/pref);
   // Independent brute-force second-stage reference (not the production optimizer).
-  const residual = tau => observations(1.6,75).reduce((s,o)=>
-    s+(1+.42*(1-Math.exp(-o.t/tau))-o.value/(1.6/1.42))**2,0);
+  const residual = tau => {
+    const data=observations(1.6,75);
+    const q=data.map(o=>1-Math.exp(-o.t/tau));
+    const amplitude=q.reduce((sum,v,i)=>sum+v*(data[i].value/(1.6/pref)-1),0)/q.reduce((sum,v)=>sum+v*v,0);
+    return data.reduce((sum,o,i)=>sum+(1+amplitude*q[i]-o.value/(1.6/pref))**2,0);
+  };
   let best=0,bestError=Infinity;
   for(let tau=1;tau<=300;tau+=.01) {
     const error=residual(tau);
@@ -77,14 +82,14 @@ test("CSV seconds/minutes, zero-time point, and microscopy route remain usable",
 });
 
 test("prediction plateau is independent of k0 and agrees with the fitting reference",()=>{
-  for(const k0 of [1e-6,6.3e-5,1e-3]) near(fc({...settings,k0},600).p,1.42);
-  near(fc({...settings,k0:expectedK0},60).r,exponential(60,1.42,60));
+  for(const k0 of [1e-6,6.3e-5,1e-3]) near(fc({...settings,k0},600).p,pref);
+  near(fc({...settings,k0:expectedK0},60).r,exponential(60,pref,60));
 });
 
 test("full-resolution 200,001-point CSV fits without argument-limit errors or downsampling",()=>{
   const csv = 'time_s,sls_ratio\n' + Array.from({length:200001}, (_,i) => {
     const t=i*.001;
-    return `${t},${exponential(t,1.42,60)}`;
+    return `${t},${exponential(t,pref,60)}`;
   }).join('\n');
   const parsed=JG(csv);
   assert.equal(parsed.observations.length,200001);
@@ -93,4 +98,14 @@ test("full-resolution 200,001-point CSV fits without argument-limit errors or do
   assert.equal(result.used,200001);
   assert.equal(result.predictions.length,200001);
   near(result.f,1); near(result.tau,60); near(result.k0,expectedK0);
+});
+
+test("production calibration preserves wavelength-matched full-precision products",()=>{
+  const source=JSON.parse(readFileSync(new URL('../calibration-provenance.json',import.meta.url),'utf8'));
+  for(const [pair,c] of Object.entries(source.calibrations)) {
+    const actual=Ka['1.0|'+pair.replaceAll('-','/')];
+    near(actual.p_tilde,c.p,1e-13);
+    near(actual.beta,c.beta,1e-13);
+    near(actual.alpha*actual.tau_tilde,c.A,1e-13);
+  }
 });

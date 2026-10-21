@@ -1,4 +1,4 @@
-import {fitSls} from "./fitting.js?v=large-traces-2";
+import {fitSls} from "./fitting.js?v=calibration-3";
 
 // React is supplied by the existing production bundle. This readable module
 // replaces the old upload panel without rebuilding third-party dependencies.
@@ -58,7 +58,7 @@ export function createFittingPanel(React, {parseCsv, fitLengths, calibrations}) 
     const sls = results?.sls, length = results?.length;
     return h("section", {className:"rounded-lg border border-ink-100 dark:border-ink-600 bg-white dark:bg-ink-800/60 p-5 shadow-panel space-y-4", "data-testid":"estimate-k0"},
       h("h3", {className:"text-sm font-semibold"}, "Estimate k₀ from data"),
-      h("p", {className:"text-xs"}, "SLS: fit the raw plateau → estimate f → divide the whole ratio by f → refit Eq. (12) for τ with the reference plateau fixed → calculate k₀ using Eq. (13). Results automatically update when settings change."),
+      h("p", {className:"text-xs"}, "SLS: fit the raw plateau → estimate f → divide the whole ratio by f → refit Eq. (12) for τ with a free plateau → calculate k₀ using Eq. (13). Results automatically update when settings change."),
       h("div", {className:"flex items-center gap-2 flex-wrap"},
         h("input", {ref:input, type:"file", accept:".csv,text/csv,text/plain", onChange:upload,
           "aria-label":"Upload CSV", "data-testid":"input-csv-upload", className:"text-xs"}),
@@ -68,7 +68,7 @@ export function createFittingPanel(React, {parseCsv, fitLengths, calibrations}) 
       h("details", {className:"text-xs"},
         h("summary", {className:"cursor-pointer"}, "Accepted columns & fitting convention"),
         h("p", null, "Time: time_s, time_min, t, t_s, t_min. SLS: sls_ratio, r, ratio. Length: mean_ulf, mean_nm, mean_um, median_ulf, median_nm, median_um. Lengths are converted by ULF = (nm − 60)/43 + 1. Supply precomputed length summaries, not individual filament distributions."),
-        h("p", null, "Both SLS fits use ordinary least squares. First fit: baseline 1, free plateau and τ. f = raw fitted plateau / reference plateau. Second fit: divide the entire measured ratio by f, then fit τ with baseline 1 and the reference plateau fixed. The manual prediction f slider is not used to estimate f."),
+        h("p", null, "Both SLS fits use ordinary least squares. First fit: baseline 1, free plateau and τ. f = raw fitted plateau / reference plateau. Second fit: divide the entire measured ratio by f, then fit plateau and τ with baseline 1. The manual prediction f slider is not used to estimate f."),
         h("p", null, "Reversed wavelength pairs are inverted to the calibrated orientation before fitting. If length and SLS columns coexist, independent estimates are shown instead of merging the two measurements into one fit."),
         h("pre", {className:"overflow-x-auto"}, sample)),
       loading && h("p", {role:"status"}, "Reading CSV…"),
@@ -82,7 +82,8 @@ export function createFittingPanel(React, {parseCsv, fitLengths, calibrations}) 
           ["First fit", "Provisional τ [s]", number(sls.firstTau)],
           ["Calibration", "f = p_unscaled / p_reference", number(sls.f)],
           ["Calibration", "Multiplier 1/f", number(1/sls.f)],
-          ["Second fit", "Fixed reference plateau", number(sls.pReference)],
+          ["Calibration", "Reference plateau", number(sls.pReference)],
+          ["Second fit", "Fitted plateau", number(sls.pFitted)],
           ["Second fit", "τ [s]", number(sls.tau)],
           ["Eq. (13)", "k₀", number(sls.k0)],
           ["Second fit", "Corrected-ratio RMSE", number(sls.rmse)],
