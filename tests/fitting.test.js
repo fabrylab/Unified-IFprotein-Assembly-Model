@@ -80,3 +80,17 @@ test("prediction plateau is independent of k0 and agrees with the fitting refere
   for(const k0 of [1e-6,6.3e-5,1e-3]) near(fc({...settings,k0},600).p,1.42);
   near(fc({...settings,k0:expectedK0},60).r,exponential(60,1.42,60));
 });
+
+test("full-resolution 200,001-point CSV fits without argument-limit errors or downsampling",()=>{
+  const csv = 'time_s,sls_ratio\n' + Array.from({length:200001}, (_,i) => {
+    const t=i*.001;
+    return `${t},${exponential(t,1.42,60)}`;
+  }).join('\n');
+  const parsed=JG(csv);
+  assert.equal(parsed.observations.length,200001);
+  const result=fitSls(parsed.observations,settings,Ka);
+  assert.equal(result.ok,true,result.message);
+  assert.equal(result.used,200001);
+  assert.equal(result.predictions.length,200001);
+  near(result.f,1); near(result.tau,60); near(result.k0,expectedK0);
+});

@@ -7,8 +7,12 @@ export function exponential(t, plateau, tau) {
 
 function minimizeLogTau(objective, times) {
   const positive = times.filter(t => t > 0);
-  const lo = Math.log(Math.max(Math.min(...positive) * 1e-5, 1e-9));
-  const hi = Math.log(Math.max(...positive) * 1e5);
+  // Do not spread measured time arrays into function arguments: original
+  // millisecond SLS traces exceed JavaScript engines' argument-count limits.
+  const minTime = positive.reduce((a, b) => Math.min(a, b), Infinity);
+  const maxTime = positive.reduce((a, b) => Math.max(a, b), -Infinity);
+  const lo = Math.log(Math.max(minTime * 1e-5, 1e-9));
+  const hi = Math.log(maxTime * 1e5);
   const n = 240;
   let best = 0, score = Infinity;
   for (let i = 0; i <= n; i++) {
@@ -49,6 +53,7 @@ export function fitSls(observations, settings, calibrations) {
       throw Error("At least four SLS points and three distinct positive times are required.");
     }
     const times = data.map(o => o.t);
+    const maxTime = times.reduce((a, b) => Math.max(a, b), -Infinity);
     // Profile out the amplitude analytically: ordinary least squares,
     // baseline fixed at 1, plateau and provisional tau free.
     function firstAt(tau) {
@@ -82,11 +87,11 @@ export function fitSls(observations, settings, calibrations) {
     }));
     const rmse = Math.sqrt(predictions.reduce((s, o) => s + o.residual ** 2, 0) / data.length);
     const warnings = [];
-    if (Math.max(...times) < 3 * first.tau) warnings.push(
+    if (maxTime < 3 * first.tau) warnings.push(
       "The data do not span three first-fit time constants. The plateau and f may be poorly constrained.");
     if (Math.abs(f - 1) > 0.001) warnings.push(
       "Whole-ratio calibration changes a unit baseline to 1/f. The second fit keeps baseline 1 as in Eq. (12); inspect the residuals.");
-    if (Math.max(...times) > 1800) warnings.push("Some data exceed the manuscript's first-30-minute validity range.");
+    if (maxTime > 1800) warnings.push("Some data exceed the manuscript's first-30-minute validity range.");
     if (k0 < 1e-6 || k0 > 1e-3) warnings.push("The estimate is outside the prediction slider's displayed range.");
     return {ok: true, k0, tau, f, pUnscaled, pReference, firstTau: first.tau,
       reciprocal, rmse, predictions, warnings, used: data.length};

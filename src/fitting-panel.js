@@ -1,4 +1,4 @@
-import {fitSls} from "./fitting.js";
+import {fitSls} from "./fitting.js?v=large-traces-2";
 
 // React is supplied by the existing production bundle. This readable module
 // replaces the old upload panel without rebuilding third-party dependencies.
